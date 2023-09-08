@@ -7,6 +7,7 @@ from models import *
 import os.path as osp
 import os
 import copy
+from utils import calc_psnr
 
 os.makedirs("img_cache", exist_ok=True)
 
@@ -22,6 +23,7 @@ def pred2img(pred):
 
 image = cv2.imread("cropped_00.png")
 image = cv2.resize(image, (SIZE,SIZE))
+gt_image = copy.deepcopy(image)
 
 
 # generate the target data of training
@@ -81,14 +83,14 @@ for iter_idx in range(10000):
     })
 
     if iter_idx % 100 == 0:
-        # log_str = "relu pe loss: %f, siren loss: %f" % (
-        #     relu_pe_loss.item(), )
-        log_str = "iter: %f, relu pe loss: %f, bottle loss: %f" % (
-            iter_idx, relu_pe_loss.item(), bottle_loss.item())
-        print(log_str)
+        # log_str = "iter: %f, relu pe loss: %f, bottle loss: %f" % (
+        #     iter_idx, relu_pe_loss.item(), bottle_loss.item())
+        # print(log_str)
         
         relu_pe_img = pred2img(relu_pe_recon)
         bottle_img = pred2img(bottle_recon)
+
+        log_str = f"iter:{int(iter_idx)}, relu_pe_psnr: {calc_psnr(relu_pe_recon, gt_image)}, relu_gamma_psnr: {calc_psnr(bottle_img, gt_image)}"
         
         big_img = np.concatenate([ relu_pe_img, bottle_img], axis=1)
         # big_img = relu_pe_img
