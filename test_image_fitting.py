@@ -4,6 +4,12 @@ import matplotlib.pyplot as plt
 import torch 
 from torch import nn
 from models import *
+import os.path as osp
+import os
+import copy
+
+os.makedirs("img_cache", exist_ok=True)
+
 
 SIZE = 256
 
@@ -14,9 +20,9 @@ def pred2img(pred):
     pred = pred.reshape((SIZE,SIZE,3))
     return pred
 
-image = cv2.imread("test.jpg")
+image = cv2.imread("cropped_00.png")
 image = cv2.resize(image, (SIZE,SIZE))
-cv2.imshow("target", image)
+
 
 # generate the target data of training
 image_torch = torch.from_numpy(image.astype(np.float32)/255.0)
@@ -32,57 +38,68 @@ input_grid = input_grid.view(-1,2)
 input_grid = input_grid.cuda()
 
 # initialize the models
-relu_model = ReLU_Model([2,256,256,256,256,3]).cuda()
+# relu_model = ReLU_Model([2,256,256,256,256,3]).cuda()
 relu_pe_model = ReLU_PE_Model([2,256,256,256,256,3], L=10).cuda()
-siren_model = SIREN([2,256,256,256,256,3]).cuda()
+# siren_model = SIREN([2,256,256,256,256,3]).cuda()
+
+bottle_model = nn.Sequential(
+    copy.deepcopy(relu_pe_model),
+    nn.Linear(3, 64),
+    nn.ReLU(),
+    nn.Linear(64,64),
+    nn.ReLU(),
+    nn.Linear(64,3),
+    # nn.Sigmoid()
+).cuda()
 
 # initialize the optimizer
 parameters = []
-parameters += list(relu_model.parameters())
+
 parameters += list(relu_pe_model.parameters())
-parameters += list(siren_model.parameters())
+parameters += list(bottle_model.parameters())
+
 optimizer = torch.optim.Adam(parameters, lr=1e-4)
 
 loss_log = []
 print("press ESC on any img to quit reconstruction")
 for iter_idx in range(10000):
-    relu_recon = relu_model(input_grid)
-    relu_pe_recon = relu_pe_model(input_grid)
-    siren_recon = siren_model(input_grid)
 
-    relu_loss = torch.mean((relu_recon - image_torch)**2)
+    relu_pe_recon = relu_pe_model(input_grid)
+    bottle_recon = bottle_model(input_grid)
+
     relu_pe_loss = torch.mean((relu_pe_recon - image_torch)**2)
-    siren_loss = torch.mean((siren_recon - image_torch)**2)
-    total_loss = relu_loss + relu_pe_loss + siren_loss
+    bottle_loss = torch.mean((bottle_recon - image_torch)**2)
+
+    total_loss =  relu_pe_loss + bottle_loss
 
     optimizer.zero_grad()
     total_loss.backward()
     optimizer.step()
 
     loss_log.append({
-        "relu_loss": relu_loss.item(),
-        "relu_pe_loss": relu_pe_loss.item(),
-        "siren_loss": siren_loss.item()
+        "relu_pe_loss": relu_pe_loss.item()
     })
 
     if iter_idx % 100 == 0:
-        log_str = "relu loss: %f, relu pe loss: %f, siren loss: %f" % (
-            relu_loss.item(), relu_pe_loss.item(), siren_loss.item())
+        # log_str = "relu pe loss: %f, siren loss: %f" % (
+        #     relu_pe_loss.item(), )
+        log_str = "iter: %f, relu pe loss: %f, bottle loss: %f" % (
+            iter_idx, relu_pe_loss.item(), bottle_loss.item())
         print(log_str)
-        relu_img = pred2img(relu_recon)
+        
         relu_pe_img = pred2img(relu_pe_recon)
-        siren_img = pred2img(siren_recon)
-        big_img = np.concatenate([relu_img, relu_pe_img, siren_img], axis=1)
-        cv2.imshow("reconstructed img", big_img)
-        if cv2.waitKey(10) == 27:
-            break
+        bottle_img = pred2img(bottle_recon)
+        
+        big_img = np.concatenate([ relu_pe_img, bottle_img], axis=1)
+        # big_img = relu_pe_img
+        cv2.imwrite(osp.join("img_cache", f"{str(iter_idx//100).zfill(5)}.png"), big_img)
 
-relu_losses = [i["relu_loss"] for i in loss_log]
-relu_pe_losses = [i["relu_pe_loss"] for i in loss_log]
-siren_losses = [i["siren_loss"] for i in loss_log]
-step_num = len(loss_log)
-plt.plot(range(step_num), relu_losses, label='relu_losses')
-plt.plot(range(step_num), relu_pe_losses, label='relu_pe_losses')
-plt.plot(range(step_num), siren_losses, label='siren_losses')
-plt.legend(loc='upper right')
-plt.show()
+# relu_losses = [i["relu_loss"] for i in loss_log]
+# relu_pe_losses = [i["relu_pe_loss"] for i in loss_log]
+# siren_losses = [i["siren_loss"] for i in loss_log]
+# step_num = len(loss_log)
+# plt.plot(range(step_num), relu_losses, label='relu_losses')
+# plt.plot(range(step_num), relu_pe_losses, label='relu_pe_losses')
+# plt.plot(range(step_num), siren_losses, label='siren_losses')
+# plt.legend(loc='upper right')
+# plt.show()
