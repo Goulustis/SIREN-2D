@@ -166,6 +166,42 @@ class SIREN(nn.Module):
 
         return result, gradient 
 
+
+
+class GammaMapper(nn.Module):
+    def __init__(self, base):
+        super(GammaMapper, self).__init__()
+        self.base = base  ## output rgb linear
+
+        self.mapper = nn.Sequential(
+            nn.Linear(3, 128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+
+        self.const_mlp = nn.Sequential(
+            nn.Linear(3, 32),
+            nn.ReLU(),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, 2),
+            nn.ReLU()
+        )
+    
+
+    def forward(self, x):
+        rgb_h = self.base(x)
+
+        l_h = rgb_h + torch.log(self.const_mlp(rgb_h))  # low hidden
+        rgb_l = self.mapper(l_h)
+
+        return {
+            "rgb_h": torch.exp(rgb_h),
+            "rgb_l": torch.sigmoid(rgb_l)
+        }
+        
+
+        
 if __name__ == "__main__":
     ## check SIREN gradient calculation
     model = SIREN([2,128,129,1]).double()
