@@ -43,7 +43,7 @@ class ReLU_Model(nn.Module):
 class ReLU_PE_Model(nn.Module):
     '''this is vanila relu fully connected model with position encoding'''
 
-    def __init__(self, dims, L):
+    def __init__(self, dims, L, out_act = None):
         '''L is the level of position encoding'''
         super(ReLU_PE_Model, self).__init__()
         self.L = L
@@ -53,6 +53,7 @@ class ReLU_PE_Model(nn.Module):
             # here we use the default initialization
             self.layers.append(nn.Linear(dims[i],dims[i+1]))
         self.relu = nn.ReLU(inplace=True)
+        self.out_act = out_act
 
     def position_encoding_forward(self,x):
         B,C = x.shape
@@ -95,7 +96,10 @@ class ReLU_PE_Model(nn.Module):
             relu_mask.type_as(middle_result)
             relu_masks.append(relu_mask)
         # last layer
-        result = self.layers[-1](middle_result)
+        if self.out_act is not None:
+            result = self.out_act(self.layers[-1](middle_result))
+        else:
+            result = self.layers[-1](middle_result)
 
         if not get_gradient:
             return result
