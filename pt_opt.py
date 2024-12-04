@@ -82,7 +82,7 @@ class PTOpt:
         self.learning_rate = learning_rate
     
 
-    def metropolis_update(self, current:np.ndarray, 
+    def metropolis_update(self, current, 
                                 beta:float, energy_fn, accept_counter):
         """
         Perform one Metropolis update at a given inverse temperature beta,
@@ -99,7 +99,7 @@ class PTOpt:
         """
         # Propose a new state
         # proposal = current + np.random.normal(0, self.learning_rate, size=current.shape)
-        proposal = current + torch.randn_like(torch.tensor(current)) * self.learning_rate
+        proposal = current + torch.randn_like(current) * self.learning_rate
 
         # Compute energies
         E_current = energy_fn(current)
